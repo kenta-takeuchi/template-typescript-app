@@ -1,0 +1,99 @@
+{
+  "compilerOptions": {
+    // Language and Environment
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+
+    // Modules
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+
+    // Type Checking - DDD Strict Rules
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    // Emit
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false,
+    "importHelpers": true,
+
+    // Interop Constraints
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+
+    // Completeness
+    "skipDefaultLibCheck": true,
+
+    // Path Mapping for DDD Layers
+    "baseUrl": ".",
+    "paths": {
+      "@template/*": ["packages/*/src"],
+      "@template/types": ["packages/types/src"],
+      "@template/utils": ["packages/utils/src"],
+      "@template/config": ["packages/config/src"],
+      "@template/ui": ["packages/ui/src"],
+      "@template/database": ["packages/database/src"],
+
+      // Domain-First Layer Aliases
+      "~user/*": ["*/src/user/*"],
+      "~job/*": ["*/src/job/*"],
+      "~application/*": ["*/src/application/*"],
+      "~shared/*": ["*/src/shared/*"],
+
+      // Layer-specific Aliases
+      "~domain/*": ["*/src/*/domain/*"],
+      "~app/*": ["*/src/*/application/*"],
+      "~infra/*": ["*/src/*/infrastructure/*"],
+      "~ui/*": ["*/src/*/presentation/*"],
+
+      // App-specific aliases
+      "~api/*": ["apps/api/src/*"],
+      "~jobseeker/*": ["apps/jobseeker-web/src/*"],
+      "~company/*": ["apps/company-web/src/*"],
+      "~agent/*": ["apps/agent-web/src/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+    "**/*.d.ts"
+  ],
+  "references": [
+    { "path": "./apps/api" },
+    { "path": "./apps/jobseeker-web" },
+    { "path": "./apps/company-web" },
+    { "path": "./apps/agent-web" },
+    { "path": "./packages/config" },
+    { "path": "./packages/types" },
+    { "path": "./packages/utils" },
+    { "path": "./packages/ui" },
+    { "path": "./packages/database" }
+  ],
+  "ts-node": {
+    "esm": true,
+    "compilerOptions": {
+      "module": "ESNext",
+      "moduleResolution": "node"
+    }
+  }
+}

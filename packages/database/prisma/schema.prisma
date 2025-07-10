@@ -1,0 +1,91 @@
+// Template Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User roles
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// User model
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  role        UserRole @default(USER)
+  
+  // Authentication
+  firebaseUid String?  @unique
+  
+  // Profile
+  profile     UserProfile?
+  
+  // Relations
+  posts       Post[]
+  comments    Comment[]
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("users")
+}
+
+// User Profile
+model UserProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  bio         String?
+  avatarUrl   String?
+  website     String?
+  location    String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("user_profiles")
+}
+
+// Example Post model
+model Post {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  published   Boolean  @default(false)
+  
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  comments    Comment[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("posts")
+}
+
+// Example Comment model
+model Comment {
+  id          String   @id @default(cuid())
+  content     String
+  
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("comments")
+}

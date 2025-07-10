@@ -1,0 +1,164 @@
+openapi: 3.0.3
+info:
+  title: Template API
+  description: Template Application API
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@template.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:4000/api
+    description: Local development
+  - url: https://api.example.com/api
+    description: Production
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Get API server status and current date
+      operationId: getHealth
+      tags:
+        - health
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                success:
+                  summary: Success example
+                  value:
+                    status: 'ok'
+                    today: '2024-12-18'
+                    timestamp: '2024-12-18T08:00:00.000Z'
+                    server: 'template-api'
+                    version: '1.0.0'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /today:
+    get:
+      summary: Get today's date
+      description: Get current date information
+      operationId: getToday
+      tags:
+        - date
+      responses:
+        '200':
+          description: Current date information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodayResponse'
+              examples:
+                success:
+                  summary: Success example
+                  value:
+                    date: '2024-12-18'
+                    dayOfWeek: 'Wednesday'
+                    timestamp: '2024-12-18T08:00:00.000Z'
+                    formatted: 'December 18, 2024'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - today
+        - timestamp
+        - server
+      properties:
+        status:
+          type: string
+          description: Server status
+          example: 'ok'
+        today:
+          type: string
+          format: date
+          description: Current date (YYYY-MM-DD format)
+          example: '2024-12-18'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+          example: '2024-12-18T08:00:00.000Z'
+        server:
+          type: string
+          description: Server name
+          example: 'template-api'
+        version:
+          type: string
+          description: API version
+          example: '1.0.0'
+
+    TodayResponse:
+      type: object
+      required:
+        - date
+        - dayOfWeek
+        - timestamp
+        - formatted
+      properties:
+        date:
+          type: string
+          format: date
+          description: Current date (YYYY-MM-DD format)
+          example: '2024-12-18'
+        dayOfWeek:
+          type: string
+          description: Day of the week
+          example: 'Wednesday'
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+          example: '2024-12-18T08:00:00.000Z'
+        formatted:
+          type: string
+          description: Formatted date string
+          example: 'December 18, 2024'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: 'INTERNAL_SERVER_ERROR'
+        message:
+          type: string
+          description: Error message
+          example: 'Internal server error occurred'
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+          example: '2024-12-18T08:00:00.000Z'
+
+tags:
+  - name: health
+    description: Health check endpoints
+  - name: date
+    description: Date-related endpoints

@@ -1,0 +1,34 @@
+{
+  "name": "@template/config",
+  "version": "0.1.0",
+  "description": "Shared configuration files for Ryckan project",
+  "private": true,
+  "exports": {
+    "./eslint": "./eslint/index.js",
+    "./eslint/web-common": "./eslint/web-common.js",
+    "./typescript": "./typescript/index.json",
+    "./tailwind": "./tailwind/index.js",
+    "./tailwind/web-common": "./tailwind/web-common.js",
+    "./jest": "./jest/base.js",
+    "./jest/node": "./jest/node.js",
+    "./jest/react": "./jest/react.js",
+    "./jest/web-common": "./jest/web-common.js",
+    "./scripts/web-common": "./scripts/web-common.js"
+  },
+  "scripts": {
+    "test": "jest --passWithNoTests",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "files": [
+    "eslint",
+    "typescript",
+    "tailwind",
+    "jest",
+    "scripts"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}

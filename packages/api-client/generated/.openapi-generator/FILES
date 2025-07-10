@@ -1,0 +1,15 @@
+.gitignore
+.npmignore
+README.md
+package.json
+src/apis/DateApi.ts
+src/apis/HealthApi.ts
+src/apis/index.ts
+src/index.ts
+src/models/ErrorResponse.ts
+src/models/HealthResponse.ts
+src/models/TodayResponse.ts
+src/models/index.ts
+src/runtime.ts
+tsconfig.esm.json
+tsconfig.json

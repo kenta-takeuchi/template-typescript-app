@@ -1,0 +1,6 @@
+echo "🔍 Running pre-push validation..."
+
+# Run full validation before push
+pnpm validate
+
+echo "✅ Pre-push validation completed successfully!"

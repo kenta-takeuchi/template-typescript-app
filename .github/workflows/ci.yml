@@ -1,0 +1,222 @@
+name: CI - Lint and Test
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  # Turbo cache configuration
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  # 変更されたファイルをチェックして、必要なジョブを判定
+  detect-changes:
+    name: Detect Changed Files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docs: ${{ steps.filter.outputs.docs }}
+      api: ${{ steps.filter.outputs.api }}
+      jobseeker-web: ${{ steps.filter.outputs.jobseeker-web }}
+      company-web: ${{ steps.filter.outputs.company-web }}
+      agent-web: ${{ steps.filter.outputs.agent-web }}
+      packages: ${{ steps.filter.outputs.packages }}
+      infrastructure: ${{ steps.filter.outputs.infrastructure }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+      any-code: ${{ steps.filter.outputs.any-code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - 'docs/**'
+              - '*.md'
+            api:
+              - 'apps/api/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+            jobseeker-web:
+              - 'apps/jobseeker-web/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+            company-web:
+              - 'apps/company-web/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+            agent-web:
+              - 'apps/agent-web/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+            packages:
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+            infrastructure:
+              - 'infrastructure/**'
+              - '.github/**'
+            workflows:
+              - '.github/workflows/**'
+            any-code:
+              - 'apps/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+              - 'turbo.json'
+              - '.eslintrc.js'
+              - '.prettierrc'
+              - 'tsconfig.json'
+  ci:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    # ドキュメントのみの変更の場合はスキップ
+    if: needs.detect-changes.outputs.any-code == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build packages and generate types
+        run: |
+          pnpm --filter=@ryckan/database run db:generate
+          pnpm build --filter=@ryckan/types --filter=@ryckan/utils --filter=@ryckan/config --filter=@ryckan/database --filter=@ryckan/ui
+          pnpm --filter=@ryckan/api run generate:types
+          pnpm --filter=@ryckan/api-client run generate
+          pnpm --filter=@ryckan/api-client run build
+
+      - name: Cache build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/*/.next
+            packages/*/dist
+            packages/api-client/generated
+          key: ${{ runner.os }}-build-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-build-
+
+      - name: Run quality checks in parallel
+        run: |
+          pnpm type-check &
+          pnpm lint &
+          pnpm test &
+          wait
+
+  build-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [ci, detect-changes]
+    # ドキュメントのみの変更の場合はスキップ
+    if: needs.detect-changes.outputs.any-code == 'true'
+
+    strategy:
+      matrix:
+        include:
+          - app: '@ryckan/api'
+            condition: api
+          - app: '@ryckan/jobseeker-web'
+            condition: jobseeker-web
+          - app: '@ryckan/company-web'
+            condition: company-web
+          - app: '@ryckan/agent-web'
+            condition: agent-web
+
+    steps:
+      # 対象アプリケーションに変更がない場合はスキップ
+      - name: Check if job should run
+        id: should-run
+        run: |
+          if [[ "${{ needs.detect-changes.outputs[matrix.condition] }}" == "true" || "${{ needs.detect-changes.outputs.packages }}" == "true" ]]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip message
+        if: steps.should-run.outputs.run == 'false'
+        run: echo "No changes detected for ${{ matrix.app }}, skipping build"
+      - name: Checkout code
+        if: steps.should-run.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: steps.should-run.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        if: steps.should-run.outputs.run == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        if: steps.should-run.outputs.run == 'true'
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        if: steps.should-run.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Restore build cache
+        if: steps.should-run.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/*/.next
+            packages/*/dist
+            packages/api-client/generated
+          key: ${{ runner.os }}-build-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-build-
+
+      - name: Install dependencies
+        if: steps.should-run.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build ${{ matrix.app }}
+        if: steps.should-run.outputs.run == 'true'
+        run: pnpm build --filter=${{ matrix.app }}

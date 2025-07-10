@@ -1,0 +1,198 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: asia-northeast1
+  REGISTRY: gcr.io
+  # Turbo cache configuration
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  build:
+    name: Build Applications
+    runs-on: ubuntu-latest
+
+    outputs:
+      api-image: ${{ steps.build-outputs.outputs.api-image }}
+      jobseeker-image: ${{ steps.build-outputs.outputs.jobseeker-image }}
+      company-image: ${{ steps.build-outputs.outputs.company-image }}
+      agent-image: ${{ steps.build-outputs.outputs.agent-image }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages and applications
+        run: |
+          pnpm --filter=@ryckan/database run db:generate
+          pnpm build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker
+
+      - name: Set build outputs
+        id: build-outputs
+        run: |
+          echo "api-image=$REGISTRY/$PROJECT_ID/ryckan-api:$GITHUB_SHA" >> $GITHUB_OUTPUT
+          echo "jobseeker-image=$REGISTRY/$PROJECT_ID/ryckan-jobseeker-web:$GITHUB_SHA" >> $GITHUB_OUTPUT
+          echo "company-image=$REGISTRY/$PROJECT_ID/ryckan-company-web:$GITHUB_SHA" >> $GITHUB_OUTPUT
+          echo "agent-image=$REGISTRY/$PROJECT_ID/ryckan-agent-web:$GITHUB_SHA" >> $GITHUB_OUTPUT
+
+  docker-build:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: build
+
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      matrix:
+        include:
+          - service: api
+            dockerfile: infrastructure/docker/api.Dockerfile
+            image: ryckan-api
+          - service: jobseeker-web
+            dockerfile: infrastructure/docker/jobseeker-web.Dockerfile
+            image: ryckan-jobseeker-web
+          - service: company-web
+            dockerfile: infrastructure/docker/company-web.Dockerfile
+            image: ryckan-company-web
+          - service: agent-web
+            dockerfile: infrastructure/docker/agent-web.Dockerfile
+            image: ryckan-agent-web
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker
+
+      - name: Build and push ${{ matrix.service }} image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ matrix.image }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ matrix.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: [build, docker-build]
+    environment: ${{ github.event.inputs.environment }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      matrix:
+        include:
+          - service: ryckan-api
+            image: ryckan-api
+            memory: 512Mi
+            cpu: '1'
+            max-instances: 10
+            min-instances: 1
+          - service: ryckan-jobseeker-web
+            image: ryckan-jobseeker-web
+            memory: 512Mi
+            cpu: '1'
+            max-instances: 10
+            min-instances: 1
+          - service: ryckan-company-web
+            image: ryckan-company-web
+            memory: 512Mi
+            cpu: '1'
+            max-instances: 5
+            min-instances: 0
+          - service: ryckan-agent-web
+            image: ryckan-agent-web
+            memory: 512Mi
+            cpu: '1'
+            max-instances: 3
+            min-instances: 0
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy ${{ matrix.service }} to Cloud Run
+        run: |
+          gcloud run deploy ${{ matrix.service }} \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ matrix.image }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars NODE_ENV=production \
+            --memory ${{ matrix.memory }} \
+            --cpu ${{ matrix.cpu }} \
+            --max-instances ${{ matrix.max-instances }} \
+            --min-instances ${{ matrix.min-instances }}

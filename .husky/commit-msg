@@ -1,0 +1,2 @@
+# Lint commit message
+pnpm commitlint --edit "$1"

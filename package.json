@@ -1,0 +1,89 @@
+{
+  "name": "template-monorepo",
+  "version": "1.0.0",
+  "description": "A modern full-stack monorepo template with Next.js and Fastify",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "pnpm db:start && turbo dev",
+    "dev:apps": "turbo dev",
+    "lint": "turbo lint",
+    "lint:fix": "turbo lint -- --fix",
+    "lint:check": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "type-check": "turbo type-check",
+    "type-check:watch": "turbo type-check -- --watch",
+    "test": "turbo test",
+    "test:watch": "turbo test -- --watch",
+    "test:coverage": "turbo test -- --coverage",
+    "test:ci": "turbo test -- --ci --coverage --watchAll=false",
+    "clean": "turbo clean",
+    "clean:all": "turbo clean && rm -rf node_modules && rm -rf **/node_modules",
+    "db:start": "./scripts/start-db.sh",
+    "db:stop": "./scripts/stop-db.sh",
+    "db:reset": "./scripts/reset-db.sh",
+    "db:generate": "turbo db:generate",
+    "db:push": "turbo db:push",
+    "db:migrate": "turbo db:migrate",
+    "db:studio": "turbo db:studio",
+    "db:seed": "turbo db:seed",
+    "commitlint": "commitlint --edit",
+    "commitlint:check": "commitlint --from HEAD~1 --to HEAD --verbose",
+    "validate": "pnpm type-check && pnpm lint:check && pnpm format:check && pnpm test:ci",
+    "validate:parallel": "pnpm type-check & pnpm lint:check & pnpm format:check & pnpm test:ci & wait",
+    "build:packages": "turbo build --filter=@template/types --filter=@template/utils --filter=@template/config --filter=@template/database --filter=@template/ui",
+    "build:apps": "turbo build --filter=@template/api --filter=@template/web",
+    "setup": "pnpm install && pnpm db:start && pnpm db:generate",
+    "postinstall": "turbo build",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "@template/config": "workspace:*",
+    "@testing-library/jest-dom": "^6.1.0",
+    "@testing-library/react": "^14.1.0",
+    "@types/jest": "^29.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.1",
+    "@typescript-eslint/parser": "^8.34.1",
+    "babel-jest": "^29.7.0",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "husky": "^9.0.0",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-transform-stub": "^2.0.0",
+    "jest-watch-typeahead": "^2.2.2",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.0",
+    "prettier-plugin-tailwindcss": "^0.5.7",
+    "ts-jest": "^29.1.0",
+    "turbo": "^1.10.0",
+    "typescript": "^5.3.0"
+  },
+  "packageManager": "pnpm@8.10.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

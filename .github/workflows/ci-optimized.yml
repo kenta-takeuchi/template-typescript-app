@@ -1,0 +1,126 @@
+name: Optimized CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  # Turbo cache configuration
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  ci:
+    name: Complete CI Pipeline
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build packages and generate all clients
+        run: |
+          echo "🔧 Building packages..."
+          pnpm --filter=@ryckan/database run db:generate
+          pnpm build --filter=@ryckan/types --filter=@ryckan/utils --filter=@ryckan/config --filter=@ryckan/database --filter=@ryckan/ui
+
+          echo "🔧 Generating API types..."
+          pnpm --filter=@ryckan/api run generate:types
+
+          echo "🔧 Generating shared API client..."
+          pnpm --filter=@ryckan/api-client run generate
+          pnpm --filter=@ryckan/api-client run build
+
+      - name: Run quality checks in parallel
+        run: |
+          echo "🔍 Running quality checks..."
+          pnpm type-check &
+          PID_TYPECHECK=$!
+
+          pnpm lint &
+          PID_LINT=$!
+
+          pnpm test &
+          PID_TEST=$!
+
+          # Wait for all quality checks and capture exit codes
+          wait $PID_TYPECHECK
+          EXIT_TYPECHECK=$?
+
+          wait $PID_LINT
+          EXIT_LINT=$?
+
+          wait $PID_TEST
+          EXIT_TEST=$?
+
+          # Check if any failed
+          if [ $EXIT_TYPECHECK -ne 0 ] || [ $EXIT_LINT -ne 0 ] || [ $EXIT_TEST -ne 0 ]; then
+            echo "❌ Quality checks failed"
+            exit 1
+          fi
+
+          echo "✅ All quality checks passed"
+
+      - name: Build applications in parallel
+        run: |
+          echo "🔧 Building applications..."
+          pnpm build --filter=@ryckan/api &
+          PID_API=$!
+
+          pnpm build --filter=@ryckan/jobseeker-web &
+          PID_JOBSEEKER=$!
+
+          pnpm build --filter=@ryckan/company-web &
+          PID_COMPANY=$!
+
+          pnpm build --filter=@ryckan/agent-web &
+          PID_AGENT=$!
+
+          # Wait for all builds and capture exit codes
+          wait $PID_API
+          EXIT_API=$?
+
+          wait $PID_JOBSEEKER
+          EXIT_JOBSEEKER=$?
+
+          wait $PID_COMPANY
+          EXIT_COMPANY=$?
+
+          wait $PID_AGENT
+          EXIT_AGENT=$?
+
+          # Check if any failed
+          if [ $EXIT_API -ne 0 ] || [ $EXIT_JOBSEEKER -ne 0 ] || [ $EXIT_COMPANY -ne 0 ] || [ $EXIT_AGENT -ne 0 ]; then
+            echo "❌ Application builds failed"
+            exit 1
+          fi
+
+          echo "✅ All applications built successfully"

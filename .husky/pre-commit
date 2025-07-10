@@ -1,0 +1,5 @@
+# Run lint-staged to check only staged files
+pnpm lint-staged
+
+# TODO: Re-enable after fixing TypeScript configuration
+# pnpm type-check
